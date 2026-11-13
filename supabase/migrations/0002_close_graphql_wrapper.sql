@@ -1,0 +1,7 @@
+-- pg_graphql is dropped (0001), but Supabase keeps graphql_public.graphql(), owned by supabase_admin
+-- with EXECUTE granted to anon/authenticated. Our `postgres` role can't revoke a grant it didn't make
+-- (the REVOKE is silently a no-op), so instead the Data API stops exposing that schema:
+--
+--   PATCH /v1/projects/<ref>/postgrest  {"db_schema": "public"}      (was "public,graphql_public")
+--
+-- No SQL is needed; this file records the change. security_test.py checks the exposed schemas.
