@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only this page's own files may run; data may only come from the project's Supabase API. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+                 connect-src 'self' https://gcxxytnkouvllfioqqlv.supabase.co; manifest-src 'self';
+                 worker-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>Laundry</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Laundry</h1>
+      <p id="summary" class="summary" aria-live="polite">Loading…</p>
+      <p id="banner" class="banner" hidden></p>
+    </header>
+
+    <section aria-label="Laundry room map">
+      <div class="room" id="room">
+        <!-- Washers 1-3 run down the left wall, 4-6 along the back wall; dryer stacks on the right. -->
+        <div class="tile washer at-w3" data-machine="3"></div>
+        <div class="tile washer at-w2" data-machine="2"></div>
+        <div class="tile washer at-w1" data-machine="1"></div>
+        <div class="tile washer at-w4" data-machine="4"></div>
+        <div class="tile washer at-w5" data-machine="5"></div>
+        <div class="tile washer at-w6" data-machine="6"></div>
+        <div class="tile dryer at-d7a"><span class="num">7-1</span></div>
+        <div class="tile dryer at-d7b"><span class="num">7-2</span></div>
+        <div class="tile dryer at-d8a"><span class="num">8-1</span></div>
+        <div class="tile dryer at-d8b"><span class="num">8-2</span></div>
+        <div class="tile dryer at-d9a"><span class="num">9-1</span></div>
+        <div class="tile dryer at-d9b"><span class="num">9-2</span></div>
+      </div>
+      <ul class="legend" aria-label="Legend">
+        <li><span class="swatch free"></span>Free</li>
+        <li><span class="swatch in_use"></span>In use</li>
+        <li><span class="swatch out_of_order"></span>Out of order</li>
+        <li><span class="swatch unknown"></span>No signal</li>
+        <li><span class="swatch dryer"></span>Dryers not tracked yet</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="washers-h">
+      <h2 id="washers-h">Washers</h2>
+      <ul id="list" class="list"></ul>
+    </section>
+
+    <section aria-labelledby="activity-h">
+      <h2 id="activity-h">Last 24 hours</h2>
+      <ul id="activity" class="activity"><li class="muted">Nothing yet.</li></ul>
+    </section>
+
+    <footer>
+      <p class="muted">Updates every 30 seconds. Read-only: a Bluetooth scanner listens to the machines' payment modules.</p>
+    </footer>
+  </main>
+</body>
+</html>
