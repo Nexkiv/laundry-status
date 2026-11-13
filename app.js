@@ -4,9 +4,14 @@
 "use strict";
 
 const POLL_MS = 30_000;
+// A wash cycle never runs longer than this, so "in use" for longer means the cycle is over and the
+// clothes haven't been taken out yet (the washer only reports "available" once the door opens).
+// The board's own 3-hour rule still turns a never-opened washer into "out of order".
+const CYCLE_MAX_MIN = 60;
 const STATE_TEXT = {
   free: "free",
   in_use: "in use",
+  finished: "probably done",
   out_of_order: "out of order",
   offline: "no signal",
   no_data: "no data yet",
@@ -30,23 +35,6 @@ async function view(name, query = "") {
   return res.json();
 }
 
-// "42 min", "1 h 5 min", "3 d". `atLeast` marks times that started before the scanner restarted.
-function duration(fromIso, atLeast = false) {
-  const min = Math.max(0, Math.floor((Date.now() - Date.parse(fromIso)) / 60_000));
-  let s;
-  if (min < 1) s = "<1 min";
-  else if (min < 90) s = `${min} min`;
-  else if (min < 48 * 60) s = `${Math.floor(min / 60)} h ${min % 60} min`;
-  else s = `${Math.floor(min / 1440)} d`;
-  return atLeast ? `${s}+` : s;
-}
-
-function shortDuration(fromIso, atLeast) {
-  const min = Math.max(0, Math.floor((Date.now() - Date.parse(fromIso)) / 60_000));
-  const s = min < 60 ? `${min}m` : min < 48 * 60 ? `${Math.floor(min / 60)}h` : `${Math.floor(min / 1440)}d`;
-  return atLeast ? `${s}+` : s;
-}
-
 function clock(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
@@ -58,21 +46,47 @@ function el(tag, cls, text) {
   return e;
 }
 
+function minutesSince(iso) {
+  return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
+}
+
+// What a person should see: the database state, except a long "in use" is shown as "probably done".
+function displayState(r) {
+  if (!r) return "no_data";
+  if (r.state === "in_use" && r.state_since && minutesSince(r.state_since) > CYCLE_MAX_MIN) return "finished";
+  return r.state;
+}
+
+// Tile text: minutes only while a load is running; "+" when the start was before a scanner restart.
+function tileTag(state, r) {
+  if (state === "in_use") return r.state_since ? `${minutesSince(r.state_since)}m${r.since_restart ? "+" : ""}` : "";
+  if (state === "finished") return "done?";
+  if (state === "out_of_order") return "✕";
+  if (state === "free") return "";
+  return "?";
+}
+
+function listText(state, r) {
+  const base = STATE_TEXT[state] || state;
+  if (state === "in_use" && r.state_since) {
+    const min = minutesSince(r.state_since);
+    return r.since_restart ? `${base} · at least ${min} min` : `${base} · ${min} min`;
+  }
+  return base;
+}
+
 function renderMachines(rows, stale) {
   const byNum = new Map(rows.map((r) => [r.machine, r]));
   for (const tile of document.querySelectorAll(".tile.washer")) {
     const n = Number(tile.dataset.machine);
     const r = byNum.get(n);
-    const state = r ? r.state : "no_data";
-    tile.className = tile.className.replace(/\b(free|in_use|out_of_order|offline|no_data|format_changed)\b/g, "").trim();
+    const state = displayState(r);
+    tile.className = tile.className.replace(/\b(free|in_use|finished|out_of_order|offline|no_data|format_changed)\b/g, "").trim();
     tile.classList.add(state);
     tile.replaceChildren(el("span", "num", String(n)));
-    let tag = "?";
-    if (state === "free" || state === "in_use") tag = r.state_since ? shortDuration(r.state_since, r.since_restart) : "";
-    else if (state === "out_of_order") tag = "✕";
-    tile.append(el("span", "tag", tag));
-    const sentence = `Washer ${n}: ${STATE_TEXT[state] || state}` +
-      ((state === "free" || state === "in_use") && r.state_since ? `, ${duration(r.state_since, r.since_restart)}` : "");
+    const tag = tileTag(state, r);
+    if (tag) tile.append(el("span", "tag", tag));
+    const sentence = `Washer ${n}: ${listText(state, r)}`;
     tile.setAttribute("role", "img");
     tile.setAttribute("aria-label", sentence);
     tile.title = sentence;
@@ -83,25 +97,24 @@ function renderMachines(rows, stale) {
   list.replaceChildren();
   for (let n = 1; n <= 6; n++) {
     const r = byNum.get(n);
-    const state = r ? r.state : "no_data";
+    const state = displayState(r);
     const li = el("li");
     li.append(el("span", "", `Washer ${n}`));
-    let text = STATE_TEXT[state] || state;
-    if ((state === "free" || state === "in_use") && r.state_since) {
-      text += ` · ${duration(r.state_since, r.since_restart)}`;
-    }
-    li.append(el("span", `state ${state}`, text));
+    li.append(el("span", `state ${state}`, listText(state, r)));
     list.append(li);
   }
 
-  const usable = rows.filter((r) => r.state === "free" || r.state === "in_use");
-  const free = usable.filter((r) => r.state === "free").length;
+  const states = rows.map(displayState);
+  const working = states.filter((s) => s === "free" || s === "in_use" || s === "finished").length;
+  const free = states.filter((s) => s === "free").length;
+  const done = states.filter((s) => s === "finished").length;
   const summary = document.getElementById("summary");
   summary.replaceChildren();
   if (stale || rows.length === 0) {
     summary.textContent = "No live data right now.";
   } else {
-    summary.append(el("strong", "", `${free} of ${usable.length}`), " washers free");
+    summary.append(el("strong", "", `${free} of ${working}`), " washers free");
+    if (done) summary.append(` · ${done} probably done`);
   }
 }
 

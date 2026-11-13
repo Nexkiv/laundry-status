@@ -83,6 +83,7 @@ h2 { font-size: 1rem; margin: 28px 0 8px; color: var(--muted); font-weight: 600;
 .tile .tag { font-size: clamp(0.6rem, 2.6vw, 0.8rem); line-height: 1; white-space: nowrap; }
 .tile.free         { background: var(--free-bg);   border-color: var(--free);   color: var(--free); }
 .tile.in_use       { background: var(--busy-bg);   border-color: var(--busy);   color: var(--busy); }
+.tile.finished     { background: var(--busy-bg);   border-color: var(--busy);   color: var(--busy); border-style: dashed; }
 .tile.out_of_order { background: var(--broken-bg); border-color: var(--broken); color: var(--broken);
                      background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127,127,127,.18) 6px 8px); }
 .tile.dryer { background: transparent; border-style: dashed; border-color: var(--dryer); color: var(--dryer); }
@@ -94,6 +95,7 @@ h2 { font-size: 1rem; margin: 28px 0 8px; color: var(--muted); font-weight: 600;
 .swatch { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; display: inline-block; }
 .swatch.free { border-color: var(--free); background: var(--free-bg); }
 .swatch.in_use { border-color: var(--busy); background: var(--busy-bg); }
+.swatch.finished { border-color: var(--busy); background: var(--busy-bg); border-style: dashed; }
 .swatch.out_of_order { border-color: var(--broken); background: var(--broken-bg); }
 .swatch.unknown { border-color: var(--line); background: var(--unknown-bg); }
 .swatch.dryer { border-color: var(--dryer); border-style: dashed; }
@@ -102,7 +104,9 @@ h2 { font-size: 1rem; margin: 28px 0 8px; color: var(--muted); font-weight: 600;
 .list, .activity { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
 .list li, .activity li { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
 .list li:first-child, .activity li:first-child { border-top: 0; }
+.list li > span:first-child { white-space: nowrap; }
+.list .state { text-align: right; }
 .list .state.free { color: var(--free); font-weight: 600; }
-.list .state.in_use { color: var(--busy); font-weight: 600; }
+.list .state.in_use, .list .state.finished { color: var(--busy); font-weight: 600; }
 .activity time { color: var(--muted); font-variant-numeric: tabular-nums; }
 footer { margin-top: 28px; }
