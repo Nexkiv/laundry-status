@@ -1,0 +1,9 @@
+# Only the settings this project depends on; everything else uses the Supabase CLI defaults.
+project_id = "laundry-status"
+
+[functions.push]
+# The database calls this function through pg_net with a shared hook secret (x-hook-secret),
+# not a user JWT, so the gateway's JWT check must stay off. Deploy with:
+#   supabase functions deploy push --project-ref gcxxytnkouvllfioqqlv --use-api
+# Dependencies are pinned by functions/push/deno.lock (deno.json sets it frozen).
+verify_jwt = false

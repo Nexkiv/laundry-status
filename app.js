@@ -27,6 +27,7 @@ const EVENT_TEXT = {
 let config;
 let freeNow = null;   // free washers in the latest data, for the notify hint
 let canNotify = false;   // false until push is known to work here; the setup hint must then stay put
+let hintShown = false;   // the status line holds the "N are free right now" hint, not a message
 const STORE_KEY = "laundry-alert";
 
 async function view(name, query = "") {
@@ -84,7 +85,7 @@ function renderMachines(rows, stale) {
     const n = Number(tile.dataset.machine);
     const r = byNum.get(n);
     const state = displayState(r);
-    tile.className = tile.className.replace(/\b(free|in_use|finished|out_of_order|offline|no_data|format_changed)\b/g, "").trim();
+    tile.classList.remove(...Object.keys(STATE_TEXT));
     tile.classList.add(state);
     tile.replaceChildren(el("span", "num", String(n)));
     const tag = tileTag(state, r);
@@ -107,19 +108,20 @@ function renderMachines(rows, stale) {
     list.append(li);
   }
 
+  const live = !stale && rows.length > 0;
   const states = rows.map(displayState);
   const working = states.filter((s) => s === "free" || s === "in_use" || s === "finished").length;
   const free = states.filter((s) => s === "free").length;
   const done = states.filter((s) => s === "finished").length;
   const summary = document.getElementById("summary");
   summary.replaceChildren();
-  if (stale || rows.length === 0) {
+  if (!live) {
     summary.textContent = "No live data right now.";
   } else {
     summary.append(el("strong", "", `${free} of ${working}`), " washers free");
     if (done) summary.append(` · ${done} probably done`);
   }
-  freeNow = stale || rows.length === 0 ? null : free;
+  freeNow = live ? free : null;
   updateNotifyHint();
 }
 
@@ -173,6 +175,8 @@ async function refresh() {
     const banner = document.getElementById("banner");
     banner.textContent = "Can't reach the status service right now. Retrying…";
     banner.hidden = false;
+    freeNow = null;
+    updateNotifyHint();
     console.error(err);
   }
 }
@@ -222,38 +226,43 @@ function writeAlert(a) {
   }
 }
 
-function setStatus(text) {
+function setStatus(text, isHint = false) {
   const p = document.getElementById("notify-status");
   p.textContent = text;
   p.hidden = !text;
+  hintShown = isHint;
 }
 
 function updateNotifyHint() {
   const btn = document.getElementById("notify-btn");
   if (!canNotify || btn.classList.contains("cancel")) return;
   const want = Number(document.getElementById("want").value);
-  if (freeNow !== null && freeNow >= want) setStatus(`${freeNow} ${freeNow === 1 ? "is" : "are"} free right now.`);
-  else if (!readAlert()) setStatus("");
+  if (freeNow !== null && freeNow >= want) setStatus(`${freeNow} ${freeNow === 1 ? "is" : "are"} free right now.`, true);
+  else if (hintShown) setStatus("");
+}
+
+// Forget the saved alert once it has fired (the service worker unsubscribes when it shows it).
+async function syncAlert(reg) {
+  if (!(await reg.pushManager.getSubscription())) writeAlert(null);
 }
 
 async function showArmed(reg) {
+  await syncAlert(reg);
   const btn = document.getElementById("notify-btn");
   const want = document.getElementById("want");
-  const sub = reg ? await reg.pushManager.getSubscription() : null;
   const a = readAlert();
-  if (sub && a) {
+  if (a) {
     want.value = String(a.want);
     want.disabled = true;
     btn.textContent = "Cancel alert";
     btn.classList.add("cancel");
-    const until = new Date(a.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    setStatus(`You'll get one alert when ${a.want}+ washers are free (until ${until}).`);
+    setStatus(`You'll get one alert when ${a.want}+ washers are free (until ${clock(a.until)}).`);
   } else {
-    if (!sub) writeAlert(null);   // the alert already fired (the service worker unsubscribed)
+    const wasArmed = btn.classList.contains("cancel");
     want.disabled = false;
     btn.textContent = "Notify me";
     btn.classList.remove("cancel");
-    setStatus("");
+    if (wasArmed || hintShown) setStatus("");   // keep other messages, e.g. "Alerts are blocked…"
     updateNotifyHint();
   }
 }
@@ -277,6 +286,9 @@ async function setupNotify() {
   document.getElementById("want").addEventListener("change", updateNotifyHint);
   const reg = await navigator.serviceWorker.register("sw.js");
   await showArmed(reg);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !btn.disabled) showArmed(reg).catch(console.error);
+  });
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -311,7 +323,8 @@ async function setupNotify() {
         setStatus(res.status === 429 ? "Too many alerts right now. Try again in a minute." : "Couldn't set the alert. Try again.");
         return;
       }
-      writeAlert({ want, until: Date.now() + 3 * 3600_000 });
+      const { expires_in_minutes: minutes } = await res.json();
+      writeAlert({ want, until: Date.now() + minutes * 60_000 });
       await showArmed(reg);
     } catch (err) {
       console.error(err);
@@ -323,7 +336,19 @@ async function setupNotify() {
 }
 
 async function main() {
-  config = await (await fetch("config.public.json", { cache: "no-store" })).json();
+  try {
+    const res = await fetch("config.public.json", { cache: "no-store" });
+    if (!res.ok) throw new Error(`config: HTTP ${res.status}`);
+    config = await res.json();
+  } catch (err) {
+    const banner = document.getElementById("banner");
+    banner.textContent = "Can't reach the status service right now. Retrying…";
+    banner.hidden = false;
+    console.error(err);
+    setTimeout(main, POLL_MS);
+    return;
+  }
+  document.getElementById("cycle-max").textContent = String(CYCLE_MAX_MIN);
   await refresh();
   setInterval(refresh, POLL_MS);
   setupNotify().catch((err) => console.error(err));

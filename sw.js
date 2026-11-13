@@ -5,9 +5,9 @@
 self.addEventListener("push", (event) => {
   let data = {};
   try {
-    data = event.data ? event.data.json() : {};
+    if (event.data) data = event.data.json() || {};
   } catch {
-    data = {};
+    /* not JSON: use the defaults below */
   }
   const title = typeof data.title === "string" ? data.title.slice(0, 80) : "Laundry";
   const body = typeof data.body === "string" ? data.body.slice(0, 160) : "";

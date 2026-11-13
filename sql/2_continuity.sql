@@ -1,7 +1,7 @@
 -- Continuity: every stretch of more than 3 minutes with no snapshot, and why.
 -- The board snapshots every 60 s and its outbox backfills short outages, so a gap means one of:
 -- the seed/live boundary, a board restart (new boot_id), or rows the outbox had to drop.
-with s as (
+with gaps as (
   select b.device_id, s.boot_id, s.observed_at, s.dropped,
          lag(s.observed_at) over w as prev_at,
          lag(s.boot_id)     over w as prev_boot,
@@ -20,6 +20,6 @@ select prev_at     at time zone 'America/Denver' as gap_from,
          when dropped > prev_dropped   then format('outbox full: %s rows dropped', dropped - prev_dropped)
          else 'unexplained'
        end as reason
-from s
+from gaps
 where observed_at - prev_at > interval '3 minutes'
 order by gap_from;

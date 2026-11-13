@@ -15,8 +15,8 @@
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#1f8a4c">
-  <link rel="stylesheet" href="styles.css?v=202611130020">
-  <script src="app.js?v=202611130020" defer></script>
+  <link rel="stylesheet" href="styles.css?v=202611130105">
+  <script src="app.js?v=202611130105" defer></script>
 </head>
 <body>
   <main>
@@ -29,7 +29,7 @@
           <option value="1">1</option><option value="2">2</option><option value="3">3</option>
           <option value="4">4</option><option value="5">5</option><option value="6">6</option>
         </select>
-        <span id="want-label">or more are free</span>
+        <span>or more are free</span>
         <button type="submit" id="notify-btn">Notify me</button>
       </form>
       <p id="notify-status" class="notify-status" aria-live="polite" hidden></p>
@@ -55,7 +55,7 @@
       <ul class="legend" aria-label="Legend">
         <li><span class="swatch free"></span>Free</li>
         <li><span class="swatch in_use"></span>In use</li>
-        <li><span class="swatch finished"></span>Probably done (60+ min)</li>
+        <li><span class="swatch finished"></span><span>Probably done (<span id="cycle-max">60</span>+ min)</span></li>
         <li><span class="swatch out_of_order"></span>Out of order</li>
         <li><span class="swatch unknown"></span>No signal</li>
         <li><span class="swatch dryer"></span>Dryers not tracked yet</li>
