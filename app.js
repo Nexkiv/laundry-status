@@ -25,6 +25,8 @@ const EVENT_TEXT = {
 };
 
 let config;
+let freeNow = null;   // free washers in the latest data, for the notify hint
+const STORE_KEY = "laundry-alert";
 
 async function view(name, query = "") {
   const res = await fetch(`${config.SUPABASE_URL}/rest/v1/${name}${query}`, {
@@ -116,6 +118,8 @@ function renderMachines(rows, stale) {
     summary.append(el("strong", "", `${free} of ${working}`), " washers free");
     if (done) summary.append(` · ${done} probably done`);
   }
+  freeNow = stale || rows.length === 0 ? null : free;
+  updateNotifyHint();
 }
 
 function renderScanner(scanner) {
@@ -172,10 +176,140 @@ async function refresh() {
   }
 }
 
+// ---------------------------------------------------------------- one-shot alerts (Web Push)
+// The browser subscribes, the database stores "N or more free" for 3 hours, and when enough washers
+// are free it sends one alert and forgets the subscription. Nothing about the person is stored.
+
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function isIos() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function keyBytes(b64url) {
+  const b64 = (b64url + "=".repeat((4 - (b64url.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function readAlert() {
+  try {
+    const a = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    return a && a.until > Date.now() ? a : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAlert(a) {
+  try {
+    if (a) localStorage.setItem(STORE_KEY, JSON.stringify(a));
+    else localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* private mode: the alert still works, the page just won't remember it */
+  }
+}
+
+function setStatus(text) {
+  const p = document.getElementById("notify-status");
+  p.textContent = text;
+  p.hidden = !text;
+}
+
+function updateNotifyHint() {
+  const btn = document.getElementById("notify-btn");
+  if (!btn || btn.classList.contains("cancel")) return;
+  const want = Number(document.getElementById("want").value);
+  if (freeNow !== null && freeNow >= want) setStatus(`${freeNow} ${freeNow === 1 ? "is" : "are"} free right now.`);
+  else if (!readAlert()) setStatus("");
+}
+
+async function showArmed(reg) {
+  const btn = document.getElementById("notify-btn");
+  const want = document.getElementById("want");
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  const a = readAlert();
+  if (sub && a) {
+    want.value = String(a.want);
+    want.disabled = true;
+    btn.textContent = "Cancel alert";
+    btn.classList.add("cancel");
+    const until = new Date(a.until).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    setStatus(`You'll get one alert when ${a.want}+ washers are free (until ${until}).`);
+  } else {
+    if (!sub) writeAlert(null);   // the alert already fired (the service worker unsubscribed)
+    want.disabled = false;
+    btn.textContent = "Notify me";
+    btn.classList.remove("cancel");
+    setStatus("");
+    updateNotifyHint();
+  }
+}
+
+async function setupNotify() {
+  const form = document.getElementById("notify");
+  form.hidden = false;
+  const btn = document.getElementById("notify-btn");
+  document.getElementById("want").addEventListener("change", updateNotifyHint);
+
+  if (!pushSupported()) {
+    btn.disabled = true;
+    setStatus(isIos()
+      ? "On iPhone: tap Share → Add to Home Screen, then open Laundry from your Home Screen to get alerts."
+      : "This browser can't show alerts.");
+    return;
+  }
+  const reg = await navigator.serviceWorker.register("sw.js");
+  await showArmed(reg);
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    btn.disabled = true;
+    try {
+      const existing = await reg.pushManager.getSubscription();
+      if (btn.classList.contains("cancel")) {
+        if (existing) await existing.unsubscribe();   // the server copy expires on its own; pushes to it fail harmlessly
+        writeAlert(null);
+        await showArmed(reg);
+        setStatus("Alert canceled.");
+        return;
+      }
+      if ((await Notification.requestPermission()) !== "granted") {
+        setStatus("Alerts are blocked. Allow notifications for this site in your browser settings.");
+        return;
+      }
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: keyBytes(config.VAPID_PUBLIC_KEY),
+      });
+      const want = Number(document.getElementById("want").value);
+      const res = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/subscribe_push`, {
+        method: "POST",
+        headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ sub: { ...sub.toJSON(), min_free: want } }),
+      });
+      if (!res.ok) {
+        setStatus(res.status === 429 ? "Too many alerts right now. Try again in a minute." : "Couldn't set the alert. Try again.");
+        return;
+      }
+      writeAlert({ want, until: Date.now() + 3 * 3600_000 });
+      await showArmed(reg);
+    } catch (err) {
+      console.error(err);
+      setStatus("Couldn't set the alert. Try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 async function main() {
   config = await (await fetch("config.public.json", { cache: "no-store" })).json();
   await refresh();
   setInterval(refresh, POLL_MS);
+  setupNotify().catch((err) => console.error(err));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") refresh();
   });

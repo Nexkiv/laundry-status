@@ -1,4 +1,5 @@
 {
   "SUPABASE_URL": "https://gcxxytnkouvllfioqqlv.supabase.co",
-  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_u_c1nd9yP9sRPTXv__NxKA_Df79BAJq"
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_u_c1nd9yP9sRPTXv__NxKA_Df79BAJq",
+  "VAPID_PUBLIC_KEY": "BDwrt3Az9gx7O7acIs8ggoh0q2cQ5l-BFvrbIKMaqk2C1h7F7zh7o-q6Qtdk6sqNhDw5aU-lmdghzhHsBvL3OzU"
 }

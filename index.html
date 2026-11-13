@@ -11,14 +11,28 @@
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
   <title>Laundry</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#1f8a4c">
+  <link rel="stylesheet" href="styles.css?v=202611122127">
+  <script src="app.js?v=202611122127" defer></script>
 </head>
 <body>
   <main>
     <header>
       <h1>Laundry</h1>
       <p id="summary" class="summary" aria-live="polite">Loading…</p>
+      <form class="notify" id="notify" hidden>
+        <label for="want">Notify me when</label>
+        <select id="want" aria-label="How many free washers you need">
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+        </select>
+        <span id="want-label">or more are free</span>
+        <button type="submit" id="notify-btn">Notify me</button>
+      </form>
+      <p id="notify-status" class="notify-status" aria-live="polite" hidden></p>
       <p id="banner" class="banner" hidden></p>
     </header>
 
@@ -59,7 +73,7 @@
     </section>
 
     <footer>
-      <p class="muted">Updates every 30 seconds. Read-only: a Bluetooth scanner listens to the machines' payment modules.</p>
+      <p class="muted">Updates every 30 seconds. Each washer broadcasts whether it's available; this page only shows that.</p>
     </footer>
   </main>
 </body>

@@ -40,6 +40,12 @@ h2 { font-size: 1rem; margin: 28px 0 8px; color: var(--muted); font-weight: 600;
 .summary { margin: 4px 0 0; font-size: 1.1rem; }
 .summary strong { color: var(--free); }
 .muted { color: var(--muted); font-size: 0.9rem; }
+.notify { margin: 14px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.95rem; }
+.notify select, .notify button { font: inherit; border-radius: 8px; border: 1px solid var(--line); padding: 6px 10px; background: var(--card); color: var(--text); }
+.notify button { background: var(--free); border-color: var(--free); color: #fff; font-weight: 600; cursor: pointer; }
+.notify button.cancel { background: transparent; color: var(--text); border-color: var(--line); }
+.notify button:disabled { opacity: .5; cursor: default; }
+.notify-status { margin: 8px 0 0; font-size: 0.9rem; color: var(--muted); }
 .banner { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
 
 /* ---------------------------------------------------------------- room map
