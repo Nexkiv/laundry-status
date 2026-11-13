@@ -26,6 +26,7 @@ const EVENT_TEXT = {
 
 let config;
 let freeNow = null;   // free washers in the latest data, for the notify hint
+let canNotify = false;   // false until push is known to work here; the setup hint must then stay put
 const STORE_KEY = "laundry-alert";
 
 async function view(name, query = "") {
@@ -194,6 +195,15 @@ function keyBytes(b64url) {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+// A subscription is tied to the VAPID public key it was made with. After a key rotation the
+// browser still holds the old one, and pushes to it fail without any error on this page.
+function madeWithKey(sub, key) {
+  const old = sub.options && sub.options.applicationServerKey;
+  if (!old) return false;
+  const a = new Uint8Array(old);
+  return a.length === key.length && a.every((b, i) => b === key[i]);
+}
+
 function readAlert() {
   try {
     const a = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
@@ -220,7 +230,7 @@ function setStatus(text) {
 
 function updateNotifyHint() {
   const btn = document.getElementById("notify-btn");
-  if (!btn || btn.classList.contains("cancel")) return;
+  if (!canNotify || btn.classList.contains("cancel")) return;
   const want = Number(document.getElementById("want").value);
   if (freeNow !== null && freeNow >= want) setStatus(`${freeNow} ${freeNow === 1 ? "is" : "are"} free right now.`);
   else if (!readAlert()) setStatus("");
@@ -252,15 +262,19 @@ async function setupNotify() {
   const form = document.getElementById("notify");
   form.hidden = false;
   const btn = document.getElementById("notify-btn");
-  document.getElementById("want").addEventListener("change", updateNotifyHint);
 
+  // Safari on iPhone only allows alerts from a Home Screen app, so in the browser the whole
+  // control is disabled and the setup hint stays visible.
   if (!pushSupported()) {
     btn.disabled = true;
+    document.getElementById("want").disabled = true;
     setStatus(isIos()
       ? "On iPhone: tap Share → Add to Home Screen, then open Laundry from your Home Screen to get alerts."
       : "This browser can't show alerts.");
     return;
   }
+  canNotify = true;
+  document.getElementById("want").addEventListener("change", updateNotifyHint);
   const reg = await navigator.serviceWorker.register("sw.js");
   await showArmed(reg);
 
@@ -280,10 +294,13 @@ async function setupNotify() {
         setStatus("Alerts are blocked. Allow notifications for this site in your browser settings.");
         return;
       }
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: keyBytes(config.VAPID_PUBLIC_KEY),
-      });
+      const key = keyBytes(config.VAPID_PUBLIC_KEY);
+      let sub = existing;
+      if (sub && !madeWithKey(sub, key)) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
       const want = Number(document.getElementById("want").value);
       const res = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/subscribe_push`, {
         method: "POST",
