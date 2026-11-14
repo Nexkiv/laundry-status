@@ -115,4 +115,15 @@ h2 { font-size: 1rem; margin: 28px 0 8px; color: var(--muted); font-weight: 600;
 .list .state.free { color: var(--free); font-weight: 600; }
 .list .state.in_use, .list .state.finished { color: var(--busy); font-weight: 600; }
 .activity time { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Last 24 hours: folded by default so it doesn't crowd the page. */
+.fold { margin-top: 28px; }
+.fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 6px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary h2 { margin: 0; }
+.fold > summary::after { content: ""; width: 7px; height: 7px; margin-left: 2px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .2s; }
+.fold[open] > summary::after { transform: rotate(45deg); }
+.fold[open] > summary { margin-bottom: 8px; }
+.fold > summary:focus-visible { outline: 2px solid var(--free); outline-offset: 3px; }
+.fold .count { color: var(--muted); font-size: 0.85rem; }
 footer { margin-top: 28px; }

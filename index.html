@@ -15,8 +15,8 @@
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#1f8a4c">
-  <link rel="stylesheet" href="styles.css?v=202611130105">
-  <script src="app.js?v=202611130105" defer></script>
+  <link rel="stylesheet" href="styles.css?v=202611131930">
+  <script src="app.js?v=202611131930" defer></script>
 </head>
 <body>
   <main>
@@ -67,10 +67,10 @@
       <ul id="list" class="list"></ul>
     </section>
 
-    <section aria-labelledby="activity-h">
-      <h2 id="activity-h">Last 24 hours</h2>
-      <ul id="activity" class="activity"><li class="muted">Nothing yet.</li></ul>
-    </section>
+    <details class="fold">
+      <summary><h2 id="activity-h">Last 24 hours</h2><span id="activity-count" class="count"></span></summary>
+      <ul id="activity" class="activity" aria-labelledby="activity-h"><li class="muted">Nothing yet.</li></ul>
+    </details>
 
     <footer>
       <p class="muted">Updates every 30 seconds. Each washer broadcasts whether it's available; this page only shows that.</p>

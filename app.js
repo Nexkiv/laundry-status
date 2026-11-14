@@ -147,6 +147,7 @@ function renderActivity(events) {
   const ul = document.getElementById("activity");
   ul.replaceChildren();
   const known = events.filter((e) => EVENT_TEXT[e.event]).slice(0, 12);
+  document.getElementById("activity-count").textContent = known.length ? `(${known.length})` : "";
   if (known.length === 0) {
     ul.append(el("li", "muted", "Nothing in the last 24 hours."));
     return;
