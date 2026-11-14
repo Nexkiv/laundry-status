@@ -6,7 +6,7 @@
 const POLL_MS = 30_000;
 // A wash cycle never runs longer than this, so "in use" for longer means the cycle is over and the
 // clothes haven't been taken out yet (the washer only reports "available" once the door opens).
-// The board's own 3-hour rule still turns a never-opened washer into "out of order".
+// The board's own 24-hour rule still turns a never-opened washer into "out of order".
 const CYCLE_MAX_MIN = 60;
 const STATE_TEXT = {
   free: "free",
