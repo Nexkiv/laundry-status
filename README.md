@@ -2,10 +2,10 @@
 
 Which washers are free right now, from anywhere: **https://nexkiv.github.io/laundry-status/**
 
-A Bluetooth scanner (one ESP32 board in the laundry room, firmware in a private repo) listens to the washers' broadcasts and pushes their state over Wi-Fi to a free Supabase Postgres database every minute and on every change. This page reads that database, and a "Notify me when N or more are free" button sends one Web Push alert.
+A Bluetooth scanner (two ESP32 boards side by side in the laundry room, firmware in a private repo) listens to the washers' broadcasts and pushes their state over Wi-Fi to a free Supabase Postgres database every minute and on every change. This page reads that database, and a "Notify me when N or more are free" button sends one Web Push alert.
 
 ```
-washers ─BLE─► ESP32 in the laundry room ─HTTPS─► Supabase ingest() ─► views ─► this page (30 s poll)
+washers ─BLE─► listener ESP32 ─ESP-NOW─► base ESP32 ─HTTPS─► Supabase ingest() ─► views ─► this page (30 s poll)
                                                                     └─ trigger ─► Edge Function ─► Web Push
 pg_cron: hourly rollup · nightly retention · 5-min watchdog ─► healthchecks.io
 ```

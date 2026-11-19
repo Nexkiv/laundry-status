@@ -13,8 +13,8 @@ with the commands below.
 | green | red, data fresh | Database over 300 MB, 100+ refused calls since the start of the previous hour, or alerts failing | Sections 4 and 5 |
 | green | green | Page says "Can't reach the status service" | The publishable key was rotated (section 3) or GitHub Pages is down |
 
-The board has no web page (removed 2026-11-18; it sits on the office's shared network). Its status is
-in the USB log, every 10 s: plug a laptop into the board in the laundry room and run
+The boards have no web page (removed 2026-11-18; the base sits on the office's shared network). The
+base's status is in its USB log, every 10 s: plug a laptop into the base (board A) in the laundry room and run
 `.venv/bin/python tools/serial_watch.py /dev/cu.usbserial-0001` in the private repo's `firmware/`
 (prints only the board's own lines, no secrets; opening the port restarts the board). The `db` part
 starts with the last answer it got:
@@ -33,10 +33,10 @@ Afterwards, `sql/1_liveness.sql` should show a write under a minute old and abou
 
 ## 2. Rotate the device token
 
-The database stores only a SHA-256 of the token. The live board is **device 2**; device 1 is the old
-two-board relay, kept for a rollback (its token is `SUPABASE_DEVICE_TOKEN_A`). Between steps 3 and 4
-the board gets 401 and keeps its rows for a retry, but flashing restarts it and its outbox lives in
-memory, so those few minutes are lost.
+The database stores only a SHA-256 of the token. The live base is **device 2**. Device 1 (the hallway
+base, until 2026-11-18) was revoked on 2026-11-19: its hash is random bytes, so no token matches it.
+Between steps 3 and 4 the board gets 401 and keeps its rows for a retry, but flashing restarts it and
+its outbox lives in memory, so those few minutes are lost.
 
 1. Make a new token and put it in your shell profile like the other secrets:
    `export SUPABASE_DEVICE_TOKEN=$(openssl rand -hex 32)`. Open a new terminal.
@@ -113,7 +113,7 @@ It needs three function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `PUSH_
 
 ## 7. Roll back the board
 
-Fastest rollback to the old two-board relay: unplug the single board, plug the listener back in in
-the laundry room and the base on the hallway outlet. Both still hold their old firmware and the
-device-1 token, so they resume on their own. Firmware history and USB recovery steps are in the
-private repo's `SYSTEM_OVERVIEW.md`.
+Rollback is a USB reflash of the base with an earlier firmware from the private repo's history (for
+example the single-board build `fd9cb2e`, which needs only one board). Steps and history are in the
+private repo's `SYSTEM_OVERVIEW.md`. A restart push saying "self-heal: no uploads for 10 min" is the
+base restarting itself because uploads had stopped; it is explained, not a tamper sign.
