@@ -8,18 +8,22 @@ with the commands below.
 
 | Board check | DB check | Most likely | First step |
 |---|---|---|---|
-| red | red | Board, power or Wi-Fi is down | Same as before this project: see the private repo's `SYSTEM_OVERVIEW.md` |
-| green | red | Board is fine, but nothing reaches the database | Open the board's LAN page and read the **Database** line (below) |
+| red | red | Board, power or the office Wi-Fi is down | Check the board in the laundry room; if the office changed its Wi-Fi, see section 3 (Wi-Fi row) |
+| green | red | Board is fine, but nothing reaches the database | Read the board's USB log and its `db` part (below) |
 | green | red, data fresh | Database over 300 MB, 100+ refused calls since the start of the previous hour, or alerts failing | Sections 4 and 5 |
 | green | green | Page says "Can't reach the status service" | The publishable key was rotated (section 3) or GitHub Pages is down |
 
-The **Database** line on the board's LAN page starts with the last answer it got:
+The board has no web page (removed 2026-11-18; it sits on the office's shared network). Its status is
+in the USB log, every 10 s: plug a laptop into the board in the laundry room and run
+`.venv/bin/python tools/serial_watch.py /dev/cu.usbserial-0001` in the private repo's `firmware/`
+(prints only the board's own lines, no secrets; opening the port restarts the board). The `db` part
+starts with the last answer it got:
 
 | Shows | Meaning | Fix |
 |---|---|---|
 | `HTTP 200 · stored N rows` | Healthy | — |
 | `HTTP 400 · REJECTED …` | The server refused the data itself (dead letter: those rows are dropped) | Read the reason after `REJECTED`; usually firmware and database disagree on the format |
-| `HTTP 429 · retry in …` | Over quota: 10 calls a minute, or 3+ new boots in an hour (a reboot loop), or `tests/security_test.py` just ran | Wait a minute. If it continues, check for reboots, then roll back the last OTA |
+| `HTTP 429 · retry in …` | Over quota: 10 calls a minute, or 3+ new boots in an hour (a reboot loop), or `tests/security_test.py` just ran | Wait a minute. If it continues, check for reboots, then reflash the previous firmware over USB |
 | `HTTP 5xx` / `no answer · retry in …` | Supabase down or paused | Section 6 |
 | `HTTP 401/403/404 · retry in …` | Device token, key or API out of step (a 404 can briefly appear while a migration loads) | Section 2 or 3; the board keeps retrying and loses nothing it still holds |
 | `skipped: low memory` | Heap guard is holding the rows | Usually clears itself; reboot the board if it doesn't |
@@ -29,30 +33,32 @@ Afterwards, `sql/1_liveness.sql` should show a write under a minute old and abou
 
 ## 2. Rotate the device token
 
-The database stores only a SHA-256 of the token. Between steps 3 and 4 the board gets 401 and keeps
-its rows for a retry, but the upload restarts it and its outbox lives in memory, so those few minutes
-are lost.
+The database stores only a SHA-256 of the token. The live board is **device 2**; device 1 is the old
+two-board relay, kept for a rollback (its token is `SUPABASE_DEVICE_TOKEN_A`). Between steps 3 and 4
+the board gets 401 and keeps its rows for a retry, but flashing restarts it and its outbox lives in
+memory, so those few minutes are lost.
 
 1. Make a new token and put it in your shell profile like the other secrets:
    `export SUPABASE_DEVICE_TOKEN=$(openssl rand -hex 32)`. Open a new terminal.
-2. Build first, so the next step and the upload are back to back: `firmware/build.sh compile` (private repo).
+2. Build first, so the next step and the flash are back to back: `firmware/build.sh compile` (private repo).
 3. Print the hash (safe to share; it can't be reversed into the token):
    `printf %s "$SUPABASE_DEVICE_TOKEN" | shasum -a 256 | cut -c1-64`, then in the SQL Editor:
-   `update laundry.devices set token_sha256 = decode('<hash>', 'hex') where id = 1;`
-4. Upload right away: `firmware/build.sh run --device laundry.local --no-logs`.
-5. Check: the Database line shows `HTTP 200`.
+   `update laundry.devices set token_sha256 = decode('<hash>', 'hex') where id = 2;`
+4. Flash right away over USB, in the laundry room: `firmware/build.sh run --device /dev/cu.usbserial-0001 --no-logs`.
+5. Check: `sql/1_liveness.sql` shows a write under a minute old (or the USB log's `db` part shows `HTTP 200`).
 
 ## 3. Swap a rotated key
 
 | Key | Lives in | After rotating |
 |---|---|---|
-| Supabase publishable key (public) | `config.public.json`; `firmware/supabase.env` (private repo) | Update both. Push this repo; OTA the board |
+| Supabase publishable key (public) | `config.public.json`; `firmware/supabase.env` (private repo) | Update both. Push this repo; reflash the board over USB |
 | `SUPABASE_ACCESS_TOKEN` | Laptop env only (CLI, Management API, `tools/`) | Update the env var. Nothing deployed uses it |
 | VAPID key pair | Edge Function secrets `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`; the public key in `config.public.json` | `npx web-push generate-vapid-keys`; set both with `supabase secrets set … --project-ref gcxxytnkouvllfioqqlv`; update `config.public.json` and push. Alerts already armed were made with the old key: they fail and expire within 3 h. The next "Notify me" on that browser notices the old key and subscribes again |
 | `PUSH_HOOK_SECRET` | Edge Function secret **and** Vault `push_hook_secret`; the two must match | `export PUSH_HOOK_SECRET=$(openssl rand -hex 32)`, then `supabase secrets set PUSH_HOOK_SECRET="$PUSH_HOOK_SECRET" --project-ref gcxxytnkouvllfioqqlv` and `.venv/bin/python tools/vault_set.py push_hook_secret PUSH_HOOK_SECRET` |
 | `HC_DB_PING_URL` | Vault `hc_db_ping_url` | `.venv/bin/python tools/vault_set.py hc_db_ping_url HC_DB_PING_URL` |
 | Device token | Board firmware; hash in `laundry.devices` | Section 2 |
-| Board-only secrets (Wi-Fi, OTA password, ntfy topic, board ping URL) | Board firmware | Private repo's `SYSTEM_OVERVIEW.md` |
+| Office Wi-Fi (`WIFI_SSID`, `WIFI_PASSWORD`) | Board firmware; the office owns it | If the office changes it (they agreed to give notice), or it may have leaked: get the new password, update the env vars, reflash over USB in the laundry room. A leak means asking the office to change it |
+| Board-only secrets (ntfy topic, board ping URL) | Board firmware | Private repo's `SYSTEM_OVERVIEW.md` |
 
 The legacy JWT secret is revoked, and the legacy `anon`/`service_role` keys are disabled. Nothing uses them.
 
@@ -107,4 +113,7 @@ It needs three function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `PUSH_
 
 ## 7. Roll back the board
 
-The last-known-good firmware and the USB recovery steps are in the private repo's `SYSTEM_OVERVIEW.md`.
+Fastest rollback to the old two-board relay: unplug the single board, plug the listener back in in
+the laundry room and the base on the hallway outlet. Both still hold their old firmware and the
+device-1 token, so they resume on their own. Firmware history and USB recovery steps are in the
+private repo's `SYSTEM_OVERVIEW.md`.

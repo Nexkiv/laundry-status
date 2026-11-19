@@ -1,8 +1,8 @@
 -- Replay: rebuild the newest stored snapshot as the board's own JSON and store it again through
 -- the same function ingest() uses. Expect snapshots 0, snapshot_dups 1: nothing is added.
 with newest as (
-  select s.* from laundry.snapshots s join laundry.boots b using (boot_id)
-  where b.device_id = 1 order by s.observed_at desc limit 1
+  select s.*, b.device_id from laundry.snapshots s join laundry.boots b using (boot_id)
+  where b.device_id <> 0 order by s.observed_at desc limit 1   -- the live board (device 0 = seed)
 )
 select laundry.store_batch(
          jsonb_build_object('v', 1, 'boot', replace(n.boot_id::text, '-', ''), 'rows', jsonb_build_array(
@@ -13,5 +13,5 @@ select laundry.store_batch(
                                      extract(epoch from r.observed_at - r.state_since)::int,
                                      r.rssi, r.since_restart::int) order by r.machine)
                    from laundry.machine_readings r where r.boot_id = n.boot_id and r.seq = n.seq)))),
-         n.observed_at, 1::smallint) as replay_result
+         n.observed_at, n.device_id) as replay_result
 from newest n;
